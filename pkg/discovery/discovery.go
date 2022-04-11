@@ -56,6 +56,10 @@ func NewDiscovery(logger log.Logger, conf SDConfig) (*discovery, error) {
 		},
 		refreshInterval:   time.Duration(conf.RefreshInterval) * time.Second,
 		cloudmapNamespace: conf.CloudmapNamespace,
+		oldSources:        map[targetSourceSpec]bool{},
+		newSources:        map[targetSourceSpec]bool{},
+		failedSources:     map[targetSourceSpec]bool{},
+		failedNamespaces:  map[string]bool{},
 	}
 
 	return d, nil
@@ -93,7 +97,7 @@ func (d *discovery) refresh(ctx context.Context) ([]*targetgroup.Group, error) {
 	}
 
 	cloudmap := servicediscovery.New(sess)
-	tgs := []*targetgroup.Group{}
+	var tgs []*targetgroup.Group
 	d.newSources = make(map[targetSourceSpec]bool)
 
 	lni := &servicediscovery.ListNamespacesInput{}
@@ -117,9 +121,9 @@ func (d *discovery) refresh(ctx context.Context) ([]*targetgroup.Group, error) {
 }
 
 func (d *discovery) cleanDeletedTargets() []*targetgroup.Group {
-	tgs := []*targetgroup.Group{}
+	var tgs []*targetgroup.Group
 	backfillSources := make(map[targetSourceSpec]bool)
-	for k, _ := range d.oldSources {
+	for k := range d.oldSources {
 		if _, ok := d.newSources[k]; !ok {
 			//First check if there is failure syncing service or namespace corresponding to this source
 			if _, ok := d.failedNamespaces[k.namespace]; ok {
@@ -146,10 +150,10 @@ func (d *discovery) cleanDeletedTargets() []*targetgroup.Group {
 }
 
 func (d *discovery) processNamespace(ctx context.Context, cloudmap *servicediscovery.ServiceDiscovery, ns *servicediscovery.NamespaceSummary) []*targetgroup.Group {
-	tgs := []*targetgroup.Group{}
+	var tgs []*targetgroup.Group
 	lsi := &servicediscovery.ListServicesInput{
 		Filters: []*servicediscovery.ServiceFilter{
-			&servicediscovery.ServiceFilter{
+			{
 				Name: aws.String(servicediscovery.ServiceFilterNameNamespaceId),
 				Values: []*string{
 					ns.Id,

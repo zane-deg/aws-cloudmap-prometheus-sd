@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/awslabs/aws-cloudmap-prometheus-sd/pkg/adapter"
@@ -18,6 +19,8 @@ var (
 	a                     = kingpin.New("aws-cloudmap-prometheus-sd usage", "Tool to generate file_sd target files for AWS Cloud Map services.")
 	outputFileFlag        = a.Flag("output.file", "Output file for file_sd compatible file.").Default("cloudmap_sd.json").String()
 	awsRegionFlag         = a.Flag("aws.region", "AWS Region to use. If none provided, region will be auto-discovered by AWS SDK using environment.").String()
+	awsRoleArn            = a.Flag("aws.role", "AWS Role to assume before discovery. If none provided role will be inherited.").String()
+	awsRoleSessionName    = a.Flag("aws.sessionName", "AWS Role Session Name when assuming role.").Default("aws-cloudmap-prometheus-sd").String()
 	cloudmapNamespaceFlag = a.Flag("cloudmap.namespace", "CloudMap namespace to discovery services. If none provided all namespaces will be discovered").String()
 	refreshIntervalFlag   = a.Flag("target.refresh", "The refresh interval (in seconds).").Default("60").Int()
 	logger                log.Logger
@@ -37,7 +40,7 @@ func main() {
 	ctx := context.Background()
 
 	cfg := discovery.SDConfig{
-		RefreshInterval: *refreshIntervalFlag,
+		RefreshInterval:   *refreshIntervalFlag,
 		CloudmapNamespace: cloudmapNamespaceFlag,
 	}
 	sess, err := session.NewSession()
@@ -45,6 +48,13 @@ func main() {
 		fmt.Println("err: ", err)
 		return
 	}
+
+	if aws.StringValue(awsRoleArn) != "" {
+		cfg.Credentials = stscreds.NewCredentials(sess, *awsRoleArn, func(provider *stscreds.AssumeRoleProvider) {
+			provider.RoleSessionName = *awsRoleSessionName
+		})
+	}
+
 	if aws.StringValue(awsRegionFlag) != "" {
 		cfg.Region = aws.StringValue(awsRegionFlag)
 	} else {

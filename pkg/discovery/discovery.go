@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/servicediscovery"
 	"github.com/go-kit/kit/log"
@@ -32,6 +33,7 @@ func (spec *targetSourceSpec) String() string {
 }
 
 type SDConfig struct {
+	Credentials       *credentials.Credentials
 	Region            string
 	RefreshInterval   int
 	CloudmapNamespace *string
@@ -52,7 +54,8 @@ func NewDiscovery(logger log.Logger, conf SDConfig) (*discovery, error) {
 	d := &discovery{
 		logger: logger,
 		aws: &aws.Config{
-			Region: &conf.Region,
+			Region:      &conf.Region,
+			Credentials: conf.Credentials,
 		},
 		refreshInterval:   time.Duration(conf.RefreshInterval) * time.Second,
 		cloudmapNamespace: conf.CloudmapNamespace,
